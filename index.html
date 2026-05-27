@@ -1,0 +1,1235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NEXON Admin</title>
+  <style>
+    :root {
+      --bg: #07080b;
+      --panel: #101219;
+      --panel-2: #151923;
+      --line: rgba(255,255,255,.1);
+      --line-strong: rgba(255,255,255,.2);
+      --text: #f6f7fb;
+      --muted: #9ca3af;
+      --muted-2: #6b7280;
+      --accent: #f7f7f8;
+      --good: #27d17f;
+      --warn: #f4c55f;
+      --bad: #ff6b6b;
+      --info: #67b7ff;
+      --shadow: 0 24px 70px rgba(0,0,0,.42);
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; margin: 0; }
+    body {
+      background: linear-gradient(160deg, #07080b 0%, #0d1017 52%, #06070a 100%);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .56; }
+
+    .auth-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .auth-card {
+      width: min(430px, 100%);
+      background: rgba(16,18,25,.96);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+
+    .brand {
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 18px;
+    }
+
+    .brand span {
+      display: inline-grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      margin-right: 9px;
+      border-radius: 8px;
+      background: #fff;
+      color: #08090c;
+    }
+
+    h1, h2, h3 { margin: 0; letter-spacing: 0; }
+    h1 { font-size: 28px; line-height: 1.1; }
+    h2 { font-size: 20px; }
+    h3 { font-size: 15px; }
+    p { margin: 0; color: var(--muted); line-height: 1.55; }
+
+    .app {
+      display: none;
+      min-height: 100vh;
+      grid-template-columns: 248px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 18px;
+      border-right: 1px solid var(--line);
+      background: rgba(8,9,13,.86);
+    }
+
+    .nav {
+      display: grid;
+      gap: 5px;
+      margin-top: 22px;
+    }
+
+    .nav button {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+      padding: 0 12px;
+      font-weight: 650;
+    }
+
+    .nav button.active,
+    .nav button:hover {
+      color: var(--text);
+      background: rgba(255,255,255,.07);
+      border-color: var(--line);
+    }
+
+    .main {
+      min-width: 0;
+      padding: 22px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .page {
+      display: none;
+      animation: fade .14s ease-out;
+    }
+
+    .page.active { display: block; }
+
+    @keyframes fade {
+      from { opacity: .5; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .metrics {
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      margin-bottom: 18px;
+    }
+
+    .metric,
+    .panel {
+      background: rgba(16,18,25,.96);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 16px 44px rgba(0,0,0,.18);
+    }
+
+    .metric {
+      min-height: 104px;
+      padding: 16px;
+      display: grid;
+      align-content: space-between;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .metric .value {
+      font-size: 28px;
+      line-height: 1;
+      font-weight: 800;
+      margin-top: 13px;
+    }
+
+    .panel {
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(340px, .8fr);
+      gap: 16px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+    label { color: var(--muted); font-size: 12px; font-weight: 700; }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 40px;
+      color: var(--text);
+      background: rgba(0,0,0,.25);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      outline: none;
+      padding: 9px 11px;
+    }
+
+    textarea {
+      min-height: 86px;
+      resize: vertical;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(255,255,255,.55);
+      box-shadow: 0 0 0 2px rgba(255,255,255,.08);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      padding: 0 12px;
+      font-weight: 750;
+    }
+
+    .btn:hover { border-color: var(--line-strong); background: rgba(255,255,255,.1); }
+    .btn.primary { background: #fff; color: #090a0d; border-color: #fff; }
+    .btn.danger { color: #ffd7d7; border-color: rgba(255,107,107,.42); background: rgba(255,107,107,.1); }
+    .btn.slim { min-height: 31px; padding: 0 9px; font-size: 12px; }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #11141c;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    tr:hover td { background: rgba(255,255,255,.03); }
+    tr:last-child td { border-bottom: 0; }
+
+    .muted { color: var(--muted); }
+    .tiny { color: var(--muted-2); font-size: 12px; }
+    .mono { font-family: "Cascadia Mono", Consolas, monospace; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+      border: 1px solid var(--line);
+    }
+
+    .badge.active { color: #bfffe0; border-color: rgba(39,209,127,.42); background: rgba(39,209,127,.12); }
+    .badge.expired { color: #ffdede; border-color: rgba(255,107,107,.42); background: rgba(255,107,107,.1); }
+    .badge.disabled { color: #d8d8e0; border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.07); }
+    .badge.soon { color: #fff0c0; border-color: rgba(244,197,95,.44); background: rgba(244,197,95,.12); }
+    .badge.trial { color: #d7eaff; border-color: rgba(103,183,255,.44); background: rgba(103,183,255,.12); }
+
+    .status {
+      min-height: 22px;
+      margin-top: 10px;
+      color: var(--muted);
+    }
+
+    .status.error { color: var(--bad); }
+    .status.ok { color: var(--good); }
+
+    .hidden { display: none !important; }
+
+    dialog {
+      width: min(980px, calc(100vw - 32px));
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+      padding: 0;
+      background: var(--panel);
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+
+    dialog::backdrop { background: rgba(0,0,0,.72); }
+    .dialog-head {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(16,18,25,.98);
+    }
+
+    .dialog-body { padding: 16px; }
+
+    .qr-preview {
+      display: grid;
+      place-items: center;
+      min-height: 280px;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: #111;
+      text-align: center;
+    }
+
+    .qr-preview img {
+      max-width: 260px;
+      max-height: 260px;
+      object-fit: contain;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 10;
+      min-width: 250px;
+      max-width: min(440px, calc(100vw - 36px));
+      background: #11141c;
+      color: var(--text);
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      display: none;
+    }
+
+    .toast.show { display: block; }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .split { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .main { padding: 14px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .metrics, .form-grid { grid-template-columns: 1fr; }
+      .nav { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <section class="auth-shell" id="authShell">
+    <div class="auth-card">
+      <div class="brand"><span>N</span>NEXON ADMIN</div>
+      <h1>Admin Sign In</h1>
+      <p style="margin-top:8px">Use a Supabase Auth account that exists in `admin_users`.</p>
+      <div class="field" style="margin-top:18px">
+        <label for="loginEmail">Email</label>
+        <input id="loginEmail" autocomplete="email" type="email" placeholder="admin@example.com" />
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" autocomplete="current-password" type="password" placeholder="Password" />
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="loginBtn">Sign In</button>
+      </div>
+      <div class="status" id="authStatus"></div>
+    </div>
+  </section>
+
+  <section class="app" id="appShell">
+    <aside class="sidebar">
+      <div class="brand"><span>N</span>NEXON ADMIN</div>
+      <p id="adminEmail" class="tiny"></p>
+      <nav class="nav" id="nav"></nav>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1 id="pageTitle">Dashboard</h1>
+          <p id="pageSubtitle">Manual subscriptions and global app settings.</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn slim" id="refreshBtn">Refresh</button>
+          <button class="btn slim" id="logoutBtn">Sign Out</button>
+        </div>
+      </div>
+
+      <section class="page active" id="page-dashboard"></section>
+      <section class="page" id="page-customers"></section>
+      <section class="page" id="page-subscriptions"></section>
+      <section class="page" id="page-payments"></section>
+      <section class="page" id="page-iptv"></section>
+      <section class="page" id="page-webplayers"></section>
+      <section class="page" id="page-qr"></section>
+      <section class="page" id="page-settings"></section>
+    </main>
+  </section>
+
+  <dialog id="customerDialog">
+    <div class="dialog-head">
+      <div>
+        <h2 id="customerDialogTitle">Customer</h2>
+        <p id="customerDialogSubtitle"></p>
+      </div>
+      <button class="btn slim" onclick="closeCustomerDialog()">Close</button>
+    </div>
+    <div class="dialog-body" id="customerDialogBody"></div>
+  </dialog>
+
+  <div class="toast" id="toast"></div>
+
+  <script type="module">
+    import { createClient } from "@supabase/supabase-js";
+
+    const envValue = (value) => {
+      const trimmed = String(value || "").trim();
+      return /^%VITE_[A-Z0-9_]+%$/.test(trimmed) ? "" : trimmed;
+    };
+    const SUPABASE_URL = envValue("%VITE_SUPABASE_URL%");
+    const SUPABASE_ANON_KEY = envValue("%VITE_SUPABASE_ANON_KEY%") || envValue("%VITE_SUPABASE_PUBLISHABLE_KEY%");
+    const API_URL = envValue("%VITE_SUPABASE_ADMIN_API_URL%") || `${SUPABASE_URL}/functions/v1/admin-api`;
+
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      const status = document.getElementById("authStatus");
+      if (status) {
+        status.textContent = "Missing Supabase env vars. Copy .env.example to .env.local and set VITE_SUPABASE_URL plus VITE_SUPABASE_ANON_KEY.";
+        status.className = "status error";
+      }
+      throw new Error("Missing Supabase environment variables");
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const pages = [
+      ["dashboard", "Dashboard", "Subscription health and recent activity."],
+      ["customers", "Customers", "Search and manage registered users."],
+      ["subscriptions", "Subscriptions", "Plan settings and current subscription states."],
+      ["payments", "Payments", "Manual payment verification history."],
+      ["iptv", "IPTV Sources", "Shared M3U sources for all, sports, and kids profiles."],
+      ["webplayers", "Web Players", "Global web player slots."],
+      ["qr", "Payment QR Settings", "QR image, UPI details, and Android payment text."],
+      ["settings", "Settings", "Admin session and deployment details."],
+    ];
+
+    const state = {
+      admin: null,
+      page: "dashboard",
+      data: null,
+      selectedCustomer: null,
+      customerSearch: "",
+      sourceFilter: "",
+      paymentFilter: "",
+      qrUploadDataUrl: "",
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const money = (v) => `Rs ${Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+    const dateTime = (v) => v ? new Date(v).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "Not set";
+    const dateOnly = (v) => v ? new Date(v).toLocaleDateString("en-IN", { dateStyle: "medium" }) : "Not set";
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+    function toast(message, type = "") {
+      const el = $("toast");
+      el.textContent = message;
+      el.className = `toast show ${type}`.trim();
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
+    }
+
+    function setAuthStatus(message, type = "") {
+      $("authStatus").textContent = message || "";
+      $("authStatus").className = `status ${type}`.trim();
+    }
+
+    async function adminApi(action, payload = {}) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Please sign in again.");
+      const resp = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action, ...payload }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(json.error || `Request failed (${resp.status})`);
+      return json;
+    }
+
+    function subscriptionBadge(row) {
+      const status = row?.subscription_state || row?.status || "expired";
+      const days = row?.days_remaining;
+      if (status === "active" && typeof days === "number" && days <= 7) {
+        return `<span class="badge soon">Expiring Soon</span>`;
+      }
+      return `<span class="badge ${esc(status)}">${esc(status)}</span>`;
+    }
+
+    function daysText(days) {
+      if (days == null || Number.isNaN(Number(days))) return "Not set";
+      if (days < 0) return "Expired";
+      if (days === 0) return "Today";
+      return `${days} day${days === 1 ? "" : "s"}`;
+    }
+
+    function calcCustomerDays(customer) {
+      const expiresAt = customer?.subscription?.expires_at;
+      if (!expiresAt) return null;
+      return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
+    }
+
+    function showPage(page) {
+      state.page = page;
+      for (const [id, label, subtitle] of pages) {
+        $(`page-${id}`).classList.toggle("active", id === page);
+        const btn = document.querySelector(`[data-page="${id}"]`);
+        if (btn) btn.classList.toggle("active", id === page);
+        if (id === page) {
+          $("pageTitle").textContent = label;
+          $("pageSubtitle").textContent = subtitle;
+        }
+      }
+      render();
+    }
+
+    function renderNav() {
+      $("nav").innerHTML = pages.map(([id, label]) =>
+        `<button data-page="${id}" class="${id === state.page ? "active" : ""}">${label}</button>`
+      ).join("");
+      document.querySelectorAll("[data-page]").forEach((btn) => {
+        btn.addEventListener("click", () => showPage(btn.dataset.page));
+      });
+    }
+
+    async function loadAll() {
+      $("refreshBtn").disabled = true;
+      try {
+        const result = await adminApi("bootstrap");
+        state.admin = result.admin;
+        state.data = result.data;
+        $("adminEmail").textContent = `${state.admin.email || state.admin.id} - ${state.admin.role}`;
+        $("authShell").style.display = "none";
+        $("appShell").style.display = "grid";
+        renderNav();
+        render();
+      } catch (error) {
+        $("appShell").style.display = "none";
+        $("authShell").style.display = "grid";
+        setAuthStatus(error.message || String(error), "error");
+      } finally {
+        $("refreshBtn").disabled = false;
+      }
+    }
+
+    function render() {
+      if (!state.data) return;
+      renderDashboard();
+      renderCustomers();
+      renderSubscriptions();
+      renderPayments();
+      renderIptv();
+      renderWebPlayers();
+      renderQr();
+      renderSettings();
+    }
+
+    function renderDashboard() {
+      const data = state.data.dashboard || {};
+      const s = data.stats || {};
+      $("page-dashboard").innerHTML = `
+        <div class="grid metrics">
+          ${metric("Total customers", s.total_customers)}
+          ${metric("Active subscriptions", s.active_subscriptions)}
+          ${metric("Expired subscriptions", s.expired_subscriptions)}
+          ${metric("Expiring in 3 days", s.expiring_in_3_days)}
+          ${metric("Expiring in 7 days", s.expiring_in_7_days)}
+          ${metric("Manual payments this month", s.payments_this_month)}
+          ${metric("Estimated monthly revenue", money(s.estimated_monthly_revenue))}
+        </div>
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h2>Recent Customers</h2><button class="btn slim" onclick="showPage('customers')">View All</button></div>
+            ${customersTable(data.recent_customers || [], true)}
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Recent Payment Updates</h2><button class="btn slim" onclick="showPage('payments')">View All</button></div>
+            ${paymentsTable(data.recent_payments || [], true)}
+          </div>
+        </div>
+      `;
+    }
+
+    function metric(label, value) {
+      return `<div class="metric"><div class="label">${esc(label)}</div><div class="value">${esc(value ?? 0)}</div></div>`;
+    }
+
+    function customersTable(rows, compact = false) {
+      return `
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Email</th><th>User ID</th><th>Status</th><th>Expiry</th><th>Days</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${rows.length ? rows.map((c) => `
+                <tr>
+                  <td>${esc(c.email || c.username || "No email")}</td>
+                  <td class="mono tiny">${esc(c.id)}</td>
+                  <td>${subscriptionBadge(c)}</td>
+                  <td>${dateOnly(c.subscription?.expires_at)}</td>
+                  <td>${daysText(c.days_remaining ?? calcCustomerDays(c))}</td>
+                  <td><button class="btn slim" onclick="openCustomer('${esc(c.id)}')">${compact ? "Open" : "Details"}</button></td>
+                </tr>
+              `).join("") : `<tr><td colspan="6" class="muted">No customers found.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderCustomers() {
+      const rows = (state.data.customers || []).filter((c) => {
+        const q = state.customerSearch.trim().toLowerCase();
+        if (!q) return true;
+        return [c.email, c.username, c.id].some((v) => String(v || "").toLowerCase().includes(q));
+      });
+      $("page-customers").innerHTML = `
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Customers</h2>
+            <input style="max-width:360px" id="customerSearch" value="${esc(state.customerSearch)}" placeholder="Search email, name, or user_id" />
+          </div>
+          ${customersTable(rows)}
+        </div>
+      `;
+      $("customerSearch").addEventListener("input", (e) => {
+        state.customerSearch = e.target.value;
+        renderCustomers();
+      });
+    }
+
+    function renderSubscriptions() {
+      const plan = state.data.plan || {};
+      const rows = state.data.customers || [];
+      $("page-subscriptions").innerHTML = `
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h2>Default Plan</h2><span class="badge active">Active</span></div>
+            <div class="form-grid">
+              <div class="field"><label>Name</label><input id="planName" value="${esc(plan.name || "Monthly")}" /></div>
+              <div class="field"><label>Price</label><input id="planPrice" type="number" min="1" value="${esc(plan.price || 179)}" /></div>
+              <div class="field"><label>Duration days</label><input id="planDuration" type="number" min="1" value="${esc(plan.duration_days || 30)}" /></div>
+              <div class="field"><label>Active</label><select id="planActive"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+            </div>
+            <div class="actions"><button class="btn primary" onclick="savePlan()">Save Plan</button></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Subscription Rules</h2></div>
+            <p>Manual verification extends from current expiry when active, or from today when expired. Android unlocks only when active, enabled, not disabled, and expiry is in the future.</p>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Current Subscriptions</h2></div>
+          ${customersTable(rows)}
+        </div>
+      `;
+      $("planActive").value = String(plan.is_active !== false);
+    }
+
+    function paymentsTable(rows, compact = false) {
+      return `
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Date</th><th>Customer</th><th>Amount</th><th>Method</th><th>Months</th><th>Reference</th>${compact ? "" : "<th>Notes</th>"}
+            </tr></thead>
+            <tbody>
+              ${rows.length ? rows.map((p) => `
+                <tr>
+                  <td>${dateTime(p.created_at || p.payment_date)}</td>
+                  <td>${esc(p.profiles?.email || p.user_id || "")}</td>
+                  <td>${money(p.amount)}</td>
+                  <td>${esc(p.payment_method || "UPI")}</td>
+                  <td>${esc(p.months_added || 1)}</td>
+                  <td>${esc(p.payment_reference || "")}</td>
+                  ${compact ? "" : `<td>${esc(p.admin_notes || "")}</td>`}
+                </tr>
+              `).join("") : `<tr><td colspan="${compact ? 6 : 7}" class="muted">No payments recorded.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderPayments() {
+      const q = state.paymentFilter.trim().toLowerCase();
+      const rows = (state.data.payments || []).filter((p) =>
+        !q || [p.user_id, p.payment_method, p.payment_reference, p.profiles?.email].some((v) => String(v || "").toLowerCase().includes(q))
+      );
+      $("page-payments").innerHTML = `
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Manual Payments</h2>
+            <input style="max-width:360px" id="paymentFilter" value="${esc(state.paymentFilter)}" placeholder="Filter payment records" />
+          </div>
+          ${paymentsTable(rows)}
+        </div>
+      `;
+      $("paymentFilter").addEventListener("input", (e) => {
+        state.paymentFilter = e.target.value;
+        renderPayments();
+      });
+    }
+
+    function renderIptv() {
+      const q = state.sourceFilter.trim().toLowerCase();
+      const rows = (state.data.sources || []).filter((s) =>
+        !q || [s.profile_id, s.name, s.m3u_url].some((v) => String(v || "").toLowerCase().includes(q))
+      );
+      $("page-iptv").innerHTML = `
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Shared IPTV Sources</h2>
+            <input style="max-width:360px" id="sourceFilter" value="${esc(state.sourceFilter)}" placeholder="Filter sources" />
+          </div>
+          <div class="form-grid">
+            <input id="sourceId" type="hidden" />
+            <div class="field"><label>Profile</label><select id="sourceProfile"><option>all</option><option>sports</option><option>kids</option></select></div>
+            <div class="field"><label>Title</label><input id="sourceName" placeholder="Main Playlist" /></div>
+            <div class="field full"><label>M3U URL</label><input id="sourceM3u" placeholder="https://example.com/list.m3u" /></div>
+            <div class="field full"><label>EPG URL</label><input id="sourceEpg" placeholder="Optional EPG URL" /></div>
+            <div class="field"><label>Sort order</label><input id="sourceSort" type="number" value="0" /></div>
+            <div class="field"><label>Status</label><select id="sourceEnabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+          </div>
+          <div class="actions">
+            <button class="btn primary" onclick="saveSource()">Save Source</button>
+            <button class="btn" onclick="clearSourceForm()">Clear</button>
+            <button class="btn" onclick="testSourceUrl()">Test URL</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Profile</th><th>Name</th><th>M3U URL</th><th>Enabled</th><th>Sort</th><th></th></tr></thead>
+              <tbody>
+                ${rows.length ? rows.map((s) => `
+                  <tr>
+                    <td>${esc(s.profile_id)}</td><td>${esc(s.name)}</td>
+                    <td class="tiny">${esc(s.m3u_url)}</td>
+                    <td>${s.is_enabled ? '<span class="badge active">Enabled</span>' : '<span class="badge disabled">Disabled</span>'}</td>
+                    <td>${esc(s.sort_order)}</td>
+                    <td>
+                      <button class="btn slim" onclick="editSourceById('${esc(s.id)}')">Edit</button>
+                      <button class="btn slim danger" onclick="deleteSource('${esc(s.id)}')">Delete</button>
+                    </td>
+                  </tr>
+                `).join("") : `<tr><td colspan="6" class="muted">No shared sources configured.</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      $("sourceFilter").addEventListener("input", (e) => {
+        state.sourceFilter = e.target.value;
+        renderIptv();
+      });
+    }
+
+    function renderWebPlayers() {
+      const players = [...(state.data.web_players || [])];
+      for (const slot of [1, 2]) {
+        if (!players.some((p) => Number(p.slot) === slot)) {
+          players.push({ slot, title: `Web Player ${slot}`, url: "", is_enabled: true, sort_order: slot, open_external: false });
+        }
+      }
+      players.sort((a, b) => Number(a.slot) - Number(b.slot));
+      $("page-webplayers").innerHTML = `
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));">
+          ${players.map((p) => `
+            <div class="panel">
+              <div class="panel-head"><h2>Web Player ${esc(p.slot)}</h2>${p.is_enabled ? '<span class="badge active">Enabled</span>' : '<span class="badge disabled">Disabled</span>'}</div>
+              <div class="form-grid">
+                <input id="wpId${p.slot}" type="hidden" value="${esc(p.id || "")}" />
+                <div class="field full"><label>Title</label><input id="wpTitle${p.slot}" value="${esc(p.title || `Web Player ${p.slot}`)}" /></div>
+                <div class="field full"><label>URL</label><input id="wpUrl${p.slot}" value="${esc(p.url || "")}" /></div>
+                <div class="field"><label>Sort order</label><input id="wpSort${p.slot}" type="number" value="${esc(p.sort_order ?? p.slot)}" /></div>
+                <div class="field"><label>Status</label><select id="wpEnabled${p.slot}"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+                <div class="field"><label>Open external</label><select id="wpExternal${p.slot}"><option value="false">No</option><option value="true">Yes</option></select></div>
+              </div>
+              <div class="actions"><button class="btn primary" onclick="saveWebPlayer(${Number(p.slot)})">Save Slot ${esc(p.slot)}</button></div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+      for (const p of players) {
+        $(`wpEnabled${p.slot}`).value = String(p.is_enabled !== false);
+        $(`wpExternal${p.slot}`).value = String(p.open_external === true);
+      }
+    }
+
+    function renderQr() {
+      const qr = state.data.qr_settings || {};
+      $("page-qr").innerHTML = `
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h2>Payment QR Settings</h2>${qr.is_enabled !== false ? '<span class="badge active">Enabled</span>' : '<span class="badge disabled">Disabled</span>'}</div>
+            <div class="form-grid">
+              <div class="field full"><label>QR Image</label><input id="qrFile" type="file" accept="image/png,image/jpeg,image/webp" /></div>
+              <div class="field"><label>UPI ID</label><input id="qrUpi" value="${esc(qr.upi_id || "")}" /></div>
+              <div class="field"><label>Receiver name</label><input id="qrReceiver" value="${esc(qr.receiver_name || "")}" /></div>
+              <div class="field"><label>Support / WhatsApp</label><input id="qrSupport" value="${esc(qr.support_contact || "")}" /></div>
+              <div class="field"><label>Status</label><select id="qrEnabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+              <div class="field full"><label>Instruction text</label><textarea id="qrInstruction">${esc(qr.instruction_text || "")}</textarea></div>
+            </div>
+            <div class="actions"><button class="btn primary" onclick="saveQr()">Save QR Settings</button></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Android Preview</h2></div>
+            <div class="qr-preview" id="qrPreview">
+              ${qr.qr_image_url ? `<img src="${esc(qr.qr_image_url)}" alt="Payment QR preview" />` : "No QR image uploaded"}
+            </div>
+            <div style="margin-top:12px">
+              <h3>${esc(qr.receiver_name || "NEXON TV")}</h3>
+              <p>${esc(qr.upi_id || "UPI ID not set")}</p>
+              <p style="margin-top:8px">${esc(qr.instruction_text || "")}</p>
+            </div>
+          </div>
+        </div>
+      `;
+      $("qrEnabled").value = String(qr.is_enabled !== false);
+      $("qrFile").addEventListener("change", async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        state.qrUploadDataUrl = await fileToDataUrl(file);
+        $("qrPreview").innerHTML = `<img src="${state.qrUploadDataUrl}" alt="Payment QR preview" />`;
+      });
+    }
+
+    function renderSettings() {
+      const plan = state.data.plan || {};
+      $("page-settings").innerHTML = `
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h2>Admin Session</h2></div>
+            <p><strong>${esc(state.admin?.email || state.admin?.id || "")}</strong></p>
+            <p class="tiny">Role: ${esc(state.admin?.role || "admin")}</p>
+            <div class="actions"><button class="btn" onclick="logout()">Sign Out</button></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Active Plan</h2></div>
+            <p>${esc(plan.name || "Monthly")} - ${money(plan.price || 179)} - ${esc(plan.duration_days || 30)} days</p>
+            <div class="actions"><button class="btn" onclick="showPage('subscriptions')">Edit Plan</button></div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function fileToDataUrl(file) {
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    window.showPage = showPage;
+
+    window.openCustomer = async (userId) => {
+      try {
+        const result = await adminApi("customer", { user_id: userId });
+        state.selectedCustomer = result.data;
+        renderCustomerDialog();
+        if (!$("customerDialog").open) $("customerDialog").showModal();
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.closeCustomerDialog = () => $("customerDialog").close();
+
+    function renderCustomerDialog() {
+      const c = state.selectedCustomer || {};
+      const profile = c.profile || {};
+      const sub = c.subscription || {};
+      const plan = state.data.plan || {};
+      const statusRow = {
+        subscription_state: subscriptionStateFromSub(sub),
+        days_remaining: daysUntilSub(sub),
+      };
+      $("customerDialogTitle").textContent = profile.email || profile.username || profile.id || "Customer";
+      $("customerDialogSubtitle").textContent = profile.id || "";
+      $("customerDialogBody").innerHTML = `
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h2>Subscription</h2>${subscriptionBadge(statusRow)}</div>
+            <p>Expiry: ${dateTime(sub.expires_at)} - Days remaining: ${daysText(statusRow.days_remaining)}</p>
+            <div class="actions">
+              <button class="btn primary" onclick="adjustCurrentCustomer('turn_on')">Turn ON</button>
+              <button class="btn danger" onclick="adjustCurrentCustomer('turn_off')">Turn OFF</button>
+              <button class="btn" onclick="adjustCurrentCustomer('extend')">Extend 30 Days</button>
+            </div>
+            <div class="form-grid" style="margin-top:14px">
+              <div class="field"><label>Reduce days</label><input id="reduceDays" type="number" min="1" value="1" /></div>
+              <div class="field"><label>Custom expiry</label><input id="customExpiry" type="datetime-local" /></div>
+              <div class="field full"><label>Admin notes</label><textarea id="subNotes">${esc(sub.admin_notes || "")}</textarea></div>
+            </div>
+            <div class="actions">
+              <button class="btn" onclick="adjustCurrentCustomer('reduce')">Reduce Days</button>
+              <button class="btn" onclick="adjustCurrentCustomer('set_expiry')">Set Expiry</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Add Payment / Extend</h2></div>
+            <div class="form-grid">
+              <div class="field"><label>Months</label><input id="payMonths" type="number" min="1" value="1" oninput="syncPaymentAmount()" /></div>
+              <div class="field"><label>Amount</label><input id="payAmount" type="number" min="1" value="${esc(plan.price || 179)}" /></div>
+              <div class="field"><label>Method</label><select id="payMethod"><option>GPay</option><option>PhonePe</option><option>UPI</option><option>Other</option></select></div>
+              <div class="field"><label>Reference</label><input id="payReference" placeholder="Optional" /></div>
+              <div class="field full"><label>Notes</label><textarea id="payNotes"></textarea></div>
+            </div>
+            <div class="actions"><button class="btn primary" onclick="verifyCurrentPayment()">Verify Payment</button></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Payment History</h2></div>
+          ${paymentsTable(c.payments || [])}
+        </div>
+      `;
+    }
+
+    function subscriptionStateFromSub(sub) {
+      if (!sub || !sub.id) return "expired";
+      if (sub.disabled_by_admin || sub.status === "disabled") return "disabled";
+      if (sub.is_active && sub.status === "active" && new Date(sub.expires_at).getTime() > Date.now()) return "active";
+      if (sub.status === "trial") return "trial";
+      return "expired";
+    }
+
+    function daysUntilSub(sub) {
+      if (!sub?.expires_at) return null;
+      return Math.ceil((new Date(sub.expires_at).getTime() - Date.now()) / 86400000);
+    }
+
+    window.syncPaymentAmount = () => {
+      const months = Math.max(Number($("payMonths").value || 1), 1);
+      $("payAmount").value = String(Number(state.data.plan?.price || 179) * months);
+    };
+
+    window.verifyCurrentPayment = async () => {
+      const userId = state.selectedCustomer?.profile?.id;
+      if (!userId) return;
+      try {
+        await adminApi("verify_payment", {
+          user_id: userId,
+          months_added: Number($("payMonths").value || 1),
+          amount: Number($("payAmount").value || 0),
+          payment_method: $("payMethod").value,
+          payment_reference: $("payReference").value,
+          admin_notes: $("payNotes").value,
+        });
+        toast("Payment verified and subscription extended.", "ok");
+        await loadAll();
+        await window.openCustomer(userId);
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.adjustCurrentCustomer = async (action) => {
+      const userId = state.selectedCustomer?.profile?.id;
+      if (!userId) return;
+      if (action === "turn_off" && !confirm("Turn OFF this customer subscription?")) return;
+      const expiresInput = $("customExpiry")?.value;
+      const expiresAt = expiresInput ? new Date(expiresInput).toISOString() : null;
+      try {
+        await adminApi("adjust_subscription", {
+          user_id: userId,
+          subscription_action: action,
+          months: 1,
+          days: Number($("reduceDays")?.value || 0),
+          expires_at: action === "set_expiry" ? expiresAt : null,
+          admin_notes: $("subNotes")?.value || null,
+        });
+        toast("Subscription updated.", "ok");
+        await loadAll();
+        await window.openCustomer(userId);
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.savePlan = async () => {
+      try {
+        await adminApi("save_plan", {
+          plan: {
+            id: state.data.plan?.id,
+            name: $("planName").value,
+            price: Number($("planPrice").value || 179),
+            duration_days: Number($("planDuration").value || 30),
+            is_active: $("planActive").value === "true",
+          },
+        });
+        toast("Plan saved.", "ok");
+        await loadAll();
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.saveQr = async () => {
+      try {
+        const current = state.data.qr_settings || {};
+        await adminApi("save_qr_settings", {
+          qr_image_data_url: state.qrUploadDataUrl || "",
+          settings: {
+            qr_image_url: current.qr_image_url || "",
+            upi_id: $("qrUpi").value,
+            receiver_name: $("qrReceiver").value,
+            support_contact: $("qrSupport").value,
+            instruction_text: $("qrInstruction").value,
+            is_enabled: $("qrEnabled").value === "true",
+          },
+        });
+        state.qrUploadDataUrl = "";
+        toast("QR settings saved.", "ok");
+        await loadAll();
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.clearSourceForm = () => {
+      ["sourceId", "sourceName", "sourceM3u", "sourceEpg"].forEach((id) => $(id).value = "");
+      $("sourceProfile").value = "all";
+      $("sourceSort").value = "0";
+      $("sourceEnabled").value = "true";
+    };
+
+    window.editSourceById = (id) => {
+      const source = (state.data.sources || []).find((item) => item.id === id);
+      if (!source) return;
+      $("sourceId").value = source.id || "";
+      $("sourceProfile").value = source.profile_id || "all";
+      $("sourceName").value = source.name || "";
+      $("sourceM3u").value = source.m3u_url || "";
+      $("sourceEpg").value = source.epg_url || "";
+      $("sourceSort").value = source.sort_order ?? 0;
+      $("sourceEnabled").value = String(source.is_enabled !== false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    window.saveSource = async () => {
+      try {
+        await adminApi("save_source", {
+          source: {
+            id: $("sourceId").value,
+            profile_id: $("sourceProfile").value,
+            name: $("sourceName").value,
+            m3u_url: $("sourceM3u").value,
+            epg_url: $("sourceEpg").value,
+            sort_order: Number($("sourceSort").value || 0),
+            is_enabled: $("sourceEnabled").value === "true",
+          },
+        });
+        toast("Source saved.", "ok");
+        await loadAll();
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.deleteSource = async (id) => {
+      if (!confirm("Delete this IPTV source?")) return;
+      try {
+        await adminApi("delete_source", { id });
+        toast("Source deleted.", "ok");
+        await loadAll();
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.testSourceUrl = async () => {
+      try {
+        const result = await adminApi("test_source", { url: $("sourceM3u").value });
+        const data = result.data;
+        toast(data.message || (data.ok ? "Source responded." : "Source failed."));
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.saveWebPlayer = async (slot) => {
+      try {
+        await adminApi("save_web_player", {
+          player: {
+            slot,
+            title: $(`wpTitle${slot}`).value,
+            url: $(`wpUrl${slot}`).value,
+            sort_order: Number($(`wpSort${slot}`).value || slot),
+            is_enabled: $(`wpEnabled${slot}`).value === "true",
+            open_external: $(`wpExternal${slot}`).value === "true",
+          },
+        });
+        toast(`Web Player ${slot} saved.`, "ok");
+        await loadAll();
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    async function login() {
+      try {
+        setAuthStatus("Signing in...");
+        $("loginBtn").disabled = true;
+        const { error } = await supabase.auth.signInWithPassword({
+          email: $("loginEmail").value.trim(),
+          password: $("loginPassword").value,
+        });
+        if (error) throw error;
+        setAuthStatus("Checking admin access...");
+        await loadAll();
+      } catch (error) {
+        setAuthStatus(error.message || String(error), "error");
+      } finally {
+        $("loginBtn").disabled = false;
+      }
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      state.admin = null;
+      state.data = null;
+      $("appShell").style.display = "none";
+      $("authShell").style.display = "grid";
+      setAuthStatus("");
+    }
+
+    $("loginBtn").addEventListener("click", login);
+    $("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+    $("refreshBtn").addEventListener("click", loadAll);
+    $("logoutBtn").addEventListener("click", logout);
+    window.logout = logout;
+
+    async function init() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          await loadAll();
+        } else {
+          renderNav();
+        }
+      } catch (error) {
+        setAuthStatus(error.message || String(error), "error");
+        renderNav();
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
