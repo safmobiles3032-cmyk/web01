@@ -543,18 +543,31 @@
       $("authStatus").className = `status ${type}`.trim();
     }
 
+    function networkErrorMessage(error, target) {
+      const message = error?.message || String(error);
+      if (/failed to fetch|networkerror|load failed/i.test(message)) {
+        return `Could not reach ${target}. Check the Vercel Supabase env vars, redeploy the site, and make sure the Supabase admin-api Edge Function is deployed.`;
+      }
+      return message;
+    }
+
     async function adminApi(action, payload = {}) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Please sign in again.");
-      const resp = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ action, ...payload }),
-      });
+      let resp;
+      try {
+        resp = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ action, ...payload }),
+        });
+      } catch (error) {
+        throw new Error(networkErrorMessage(error, "the Supabase admin API"));
+      }
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(json.error || `Request failed (${resp.status})`);
       return json;
@@ -619,7 +632,7 @@
       } catch (error) {
         $("appShell").style.display = "none";
         $("authShell").style.display = "grid";
-        setAuthStatus(error.message || String(error), "error");
+        setAuthStatus(networkErrorMessage(error, "the Supabase admin API"), "error");
       } finally {
         $("refreshBtn").disabled = false;
       }
@@ -1195,7 +1208,7 @@
         setAuthStatus("Checking admin access...");
         await loadAll();
       } catch (error) {
-        setAuthStatus(error.message || String(error), "error");
+        setAuthStatus(networkErrorMessage(error, "Supabase Auth"), "error");
       } finally {
         $("loginBtn").disabled = false;
       }
@@ -1225,7 +1238,7 @@
           renderNav();
         }
       } catch (error) {
-        setAuthStatus(error.message || String(error), "error");
+        setAuthStatus(networkErrorMessage(error, "Supabase"), "error");
         renderNav();
       }
     }
