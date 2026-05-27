@@ -484,9 +484,10 @@
 
     const envValue = (value) => {
       const trimmed = String(value || "").trim();
-      return /^%VITE_[A-Z0-9_]+%$/.test(trimmed) ? "" : trimmed;
+      if (/^%VITE_[A-Z0-9_]+%$/.test(trimmed)) return "";
+      return trimmed.replace(/^["']|["']$/g, "");
     };
-    const SUPABASE_URL = envValue("%VITE_SUPABASE_URL%");
+    const SUPABASE_URL = envValue("%VITE_SUPABASE_URL%").replace(/\/+$/, "");
     const SUPABASE_ANON_KEY = envValue("%VITE_SUPABASE_ANON_KEY%") || envValue("%VITE_SUPABASE_PUBLISHABLE_KEY%");
     const API_URL = envValue("%VITE_SUPABASE_ADMIN_API_URL%") || `${SUPABASE_URL}/functions/v1/admin-api`;
 
