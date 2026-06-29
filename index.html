@@ -377,6 +377,38 @@
       object-fit: contain;
     }
 
+    .web-player-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .web-player-card {
+      cursor: grab;
+    }
+
+    .web-player-card.dragging {
+      opacity: .62;
+      border-color: rgba(255,255,255,.38);
+    }
+
+    .thumb-preview {
+      display: grid;
+      place-items: center;
+      min-height: 150px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(0,0,0,.24);
+      color: var(--muted);
+    }
+
+    .thumb-preview img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      display: block;
+    }
+
     .toast {
       position: fixed;
       right: 18px;
@@ -508,7 +540,7 @@
       ["subscriptions", "Subscriptions", "Plan settings and current subscription states."],
       ["payments", "Payments", "Manual payment verification history."],
       ["iptv", "IPTV Sources", "Shared M3U sources for all, sports, and kids profiles."],
-      ["webplayers", "Web Players", "Global web player slots."],
+      ["webplayers", "Web Players", "Dynamic Web Apps cards managed without APK updates."],
       ["qr", "Payment QR Settings", "QR image, UPI details, and Android payment text."],
       ["settings", "Settings", "Admin session and deployment details."],
     ];
@@ -522,6 +554,8 @@
       sourceFilter: "",
       paymentFilter: "",
       qrUploadDataUrl: "",
+      webPlayerUploads: {},
+      webPlayerDragId: "",
     };
 
     const $ = (id) => document.getElementById(id);
@@ -853,35 +887,84 @@
     }
 
     function renderWebPlayers() {
-      const players = [...(state.data.web_players || [])];
-      for (const slot of [1, 2]) {
-        if (!players.some((p) => Number(p.slot) === slot)) {
-          players.push({ slot, title: `Web Player ${slot}`, url: "", is_enabled: true, sort_order: slot, open_external: false });
-        }
-      }
-      players.sort((a, b) => Number(a.slot) - Number(b.slot));
+      const players = [...(state.data.web_players || [])]
+        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.title || "").localeCompare(String(b.title || "")));
       $("page-webplayers").innerHTML = `
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));">
-          ${players.map((p) => `
-            <div class="panel">
-              <div class="panel-head"><h2>Web Player ${esc(p.slot)}</h2>${p.is_enabled ? '<span class="badge active">Enabled</span>' : '<span class="badge disabled">Disabled</span>'}</div>
-              <div class="form-grid">
-                <input id="wpId${p.slot}" type="hidden" value="${esc(p.id || "")}" />
-                <div class="field full"><label>Title</label><input id="wpTitle${p.slot}" value="${esc(p.title || `Web Player ${p.slot}`)}" /></div>
-                <div class="field full"><label>URL</label><input id="wpUrl${p.slot}" value="${esc(p.url || "")}" /></div>
-                <div class="field"><label>Sort order</label><input id="wpSort${p.slot}" type="number" value="${esc(p.sort_order ?? p.slot)}" /></div>
-                <div class="field"><label>Status</label><select id="wpEnabled${p.slot}"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
-                <div class="field"><label>Open external</label><select id="wpExternal${p.slot}"><option value="false">No</option><option value="true">Yes</option></select></div>
-              </div>
-              <div class="actions"><button class="btn primary" onclick="saveWebPlayer(${Number(p.slot)})">Save Slot ${esc(p.slot)}</button></div>
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Web Players Manager</h2>
+              <p>Add, edit, disable, upload thumbnails, and reorder Web Apps remotely.</p>
             </div>
-          `).join("")}
+            <span class="badge active">${players.length} configured</span>
+          </div>
+          <div class="split">
+            <div>
+              <h3>Add Web Player</h3>
+              <div class="form-grid" style="margin-top:12px">
+                <div class="field"><label>Title</label><input id="wpNewTitle" placeholder="MovieRulz" /></div>
+                <div class="field"><label>Category</label><input id="wpNewCategory" placeholder="Movies" /></div>
+                <div class="field full"><label>Description</label><textarea id="wpNewDescription" placeholder="Optional description shown on cards"></textarea></div>
+                <div class="field full"><label>Destination URL</label><input id="wpNewUrl" placeholder="https://example.com" /></div>
+                <div class="field full"><label>Thumbnail URL</label><input id="wpNewThumbUrl" placeholder="Optional if uploading an image" /></div>
+                <div class="field"><label>Thumbnail image</label><input id="wpNewFile" type="file" accept="image/png,image/jpeg,image/webp" /></div>
+                <div class="field"><label>Sort order</label><input id="wpNewSort" type="number" value="${players.length + 1}" /></div>
+                <div class="field"><label>Status</label><select id="wpNewEnabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+                <div class="field"><label>Open mode</label><select id="wpNewOpenMode"><option value="embedded_webview">Embedded WebView</option><option value="external_browser">External browser</option><option value="custom">Custom</option></select></div>
+              </div>
+              <div class="actions"><button class="btn primary" onclick="saveWebPlayer('new')">Add Web Player</button></div>
+            </div>
+            <div>
+              <h3>Thumbnail Preview</h3>
+              <div class="thumb-preview" id="wpNewPreview">No thumbnail selected</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="web-player-list">
+          ${players.length ? players.map((p, index) => {
+            const id = esc(p.id || "");
+            const openMode = p.open_mode || (p.open_external ? "external_browser" : "embedded_webview");
+            const enabled = p.enabled !== false && p.is_enabled !== false;
+            const thumb = p.thumbnail_url || "";
+            return `
+            <div class="panel web-player-card" draggable="true" data-web-player-id="${id}" ondragstart="webPlayerDragStart(event, '${id}')" ondragover="webPlayerDragOver(event)" ondrop="webPlayerDrop(event, '${id}')" ondragend="webPlayerDragEnd(event)">
+              <div class="panel-head">
+                <div>
+                  <h2>${esc(p.title || "Untitled Web App")}</h2>
+                  <p class="tiny">Drag to reorder - ${esc(openMode)}</p>
+                </div>
+                ${enabled ? '<span class="badge active">Enabled</span>' : '<span class="badge disabled">Disabled</span>'}
+              </div>
+              <div class="form-grid">
+                <div class="field"><label>Title</label><input id="wpTitle${index}" value="${esc(p.title || "")}" /></div>
+                <div class="field"><label>Category</label><input id="wpCategory${index}" value="${esc(p.category || "")}" /></div>
+                <div class="field full"><label>Description</label><textarea id="wpDescription${index}">${esc(p.description || "")}</textarea></div>
+                <div class="field full"><label>Destination URL</label><input id="wpUrl${index}" value="${esc(p.url || "")}" /></div>
+                <div class="field full"><label>Thumbnail URL</label><input id="wpThumbUrl${index}" value="${esc(thumb)}" /></div>
+                <div class="field"><label>Thumbnail image</label><input id="wpFile${index}" type="file" accept="image/png,image/jpeg,image/webp" /></div>
+                <div class="field"><label>Sort order</label><input id="wpSort${index}" type="number" value="${esc(p.sort_order ?? index + 1)}" /></div>
+                <div class="field"><label>Status</label><select id="wpEnabled${index}"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+                <div class="field"><label>Open mode</label><select id="wpOpenMode${index}"><option value="embedded_webview">Embedded WebView</option><option value="external_browser">External browser</option><option value="custom">Custom</option></select></div>
+                <div class="field full"><label>Preview</label><div class="thumb-preview" id="wpPreview${index}">${thumb ? `<img src="${esc(thumb)}" alt="${esc(p.title || "Web player thumbnail")}" />` : "No thumbnail"}</div></div>
+              </div>
+              <div class="actions">
+                <button class="btn primary" onclick="saveWebPlayer(${index})">Save</button>
+                <button class="btn" onclick="moveWebPlayer('${id}', -1)">Move Up</button>
+                <button class="btn" onclick="moveWebPlayer('${id}', 1)">Move Down</button>
+                <button class="btn danger" onclick="deleteWebPlayer('${id}')">Delete</button>
+              </div>
+            </div>
+          `}).join("") : `<div class="panel"><p class="muted">No Web Players configured yet. Add the first one above.</p></div>`}
         </div>
       `;
-      for (const p of players) {
-        $(`wpEnabled${p.slot}`).value = String(p.is_enabled !== false);
-        $(`wpExternal${p.slot}`).value = String(p.open_external === true);
-      }
+      $("wpNewFile").addEventListener("change", (e) => handleWebPlayerFile("new", e, "wpNewPreview"));
+      players.forEach((p, index) => {
+        const openMode = p.open_mode || (p.open_external ? "external_browser" : "embedded_webview");
+        $(`wpEnabled${index}`).value = String(p.enabled !== false && p.is_enabled !== false);
+        $(`wpOpenMode${index}`).value = openMode;
+        $(`wpFile${index}`).addEventListener("change", (e) => handleWebPlayerFile(p.id, e, `wpPreview${index}`));
+      });
     }
 
     function renderQr() {
@@ -1177,23 +1260,113 @@
       }
     };
 
-    window.saveWebPlayer = async (slot) => {
+    async function handleWebPlayerFile(key, event, previewId) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      state.webPlayerUploads[key] = await fileToDataUrl(file);
+      $(previewId).innerHTML = `<img src="${state.webPlayerUploads[key]}" alt="Thumbnail preview" />`;
+    }
+
+    window.saveWebPlayer = async (target) => {
       try {
+        const players = [...(state.data.web_players || [])]
+          .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.title || "").localeCompare(String(b.title || "")));
+        const isNew = target === "new";
+        const index = Number(target);
+        const existing = isNew ? null : players[index];
+        const key = isNew ? "new" : existing?.id;
+        if (!isNew && !existing?.id) throw new Error("Missing Web Player id");
         await adminApi("save_web_player", {
+          thumbnail_data_url: state.webPlayerUploads[key] || "",
           player: {
-            slot,
-            title: $(`wpTitle${slot}`).value,
-            url: $(`wpUrl${slot}`).value,
-            sort_order: Number($(`wpSort${slot}`).value || slot),
-            is_enabled: $(`wpEnabled${slot}`).value === "true",
-            open_external: $(`wpExternal${slot}`).value === "true",
+            id: existing?.id || "",
+            title: $(isNew ? "wpNewTitle" : `wpTitle${index}`).value,
+            description: $(isNew ? "wpNewDescription" : `wpDescription${index}`).value,
+            thumbnail_url: $(isNew ? "wpNewThumbUrl" : `wpThumbUrl${index}`).value,
+            url: $(isNew ? "wpNewUrl" : `wpUrl${index}`).value,
+            category: $(isNew ? "wpNewCategory" : `wpCategory${index}`).value,
+            sort_order: Number($(isNew ? "wpNewSort" : `wpSort${index}`).value || (index + 1)),
+            enabled: $(isNew ? "wpNewEnabled" : `wpEnabled${index}`).value === "true",
+            open_mode: $(isNew ? "wpNewOpenMode" : `wpOpenMode${index}`).value,
           },
         });
-        toast(`Web Player ${slot} saved.`, "ok");
+        if (key) delete state.webPlayerUploads[key];
+        toast(isNew ? "Web Player added." : "Web Player saved.", "ok");
         await loadAll();
       } catch (error) {
         toast(error.message || String(error), "error");
       }
+    };
+
+    window.deleteWebPlayer = async (id) => {
+      if (!id || !confirm("Delete this Web Player?")) return;
+      try {
+        await adminApi("delete_web_player", { id });
+        delete state.webPlayerUploads[id];
+        toast("Web Player deleted.", "ok");
+        await loadAll();
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    async function saveWebPlayerOrder(ids) {
+      await adminApi("reorder_web_players", { ids });
+      toast("Web Player order saved.", "ok");
+      await loadAll();
+    }
+
+    window.moveWebPlayer = async (id, delta) => {
+      const ids = [...(state.data.web_players || [])]
+        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.title || "").localeCompare(String(b.title || "")))
+        .map((p) => String(p.id || ""))
+        .filter(Boolean);
+      const index = ids.indexOf(id);
+      const next = index + delta;
+      if (index < 0 || next < 0 || next >= ids.length) return;
+      [ids[index], ids[next]] = [ids[next], ids[index]];
+      try {
+        await saveWebPlayerOrder(ids);
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.webPlayerDragStart = (event, id) => {
+      state.webPlayerDragId = id;
+      event.currentTarget.classList.add("dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", id);
+    };
+
+    window.webPlayerDragOver = (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    };
+
+    window.webPlayerDrop = async (event, targetId) => {
+      event.preventDefault();
+      const sourceId = state.webPlayerDragId || event.dataTransfer.getData("text/plain");
+      if (!sourceId || !targetId || sourceId === targetId) return;
+      const ids = [...(state.data.web_players || [])]
+        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.title || "").localeCompare(String(b.title || "")))
+        .map((p) => String(p.id || ""))
+        .filter(Boolean);
+      const from = ids.indexOf(sourceId);
+      const to = ids.indexOf(targetId);
+      if (from < 0 || to < 0) return;
+      const [moved] = ids.splice(from, 1);
+      ids.splice(to, 0, moved);
+      try {
+        await saveWebPlayerOrder(ids);
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.webPlayerDragEnd = (event) => {
+      state.webPlayerDragId = "";
+      event.currentTarget.classList.remove("dragging");
     };
 
     async function login() {
