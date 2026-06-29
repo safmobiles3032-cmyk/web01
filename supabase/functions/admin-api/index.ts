@@ -37,7 +37,7 @@ function supabaseUrl(): string {
 }
 
 function serviceRole(): string {
-  return env("SUPABASE_SERVICE_ROLE_KEY")
+  return Deno.env.get("SERVICE_ROLE_KEY") ?? env("SUPABASE_SERVICE_ROLE_KEY")
 }
 
 function anonKey(): string {
@@ -134,6 +134,26 @@ function normalizeInt(value: unknown, fallback = 0): number {
 
 function normalizeText(value: unknown): string {
   return String(value ?? "").trim()
+}
+
+function normalizeUrl(value: unknown, fieldName: string, required = true): string | null {
+  const url = normalizeText(value)
+  if (!url) {
+    if (required) throw new HttpError(400, `${fieldName} is required`)
+    return null
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    throw new HttpError(400, `${fieldName} must be a valid http or https URL`)
+  }
+  return url
+}
+
+function normalizeOpenMode(value: unknown): string {
+  const mode = normalizeText(value) || "embedded_webview"
+  if (!["embedded_webview", "external_browser", "custom"].includes(mode)) {
+    throw new HttpError(400, "Open mode must be embedded_webview, external_browser, or custom")
+  }
+  return mode
 }
 
 function subscriptionState(row: Record<string, unknown> | undefined): string {
@@ -286,11 +306,14 @@ async function adjustSubscription(body: ApiBody, admin: AdminUser) {
   })
 }
 
-function dataUrlToUpload(dataUrl: string): { bytes: Uint8Array; mime: string; ext: string } {
+function dataUrlToUpload(dataUrl: string, label: string): { bytes: Uint8Array; mime: string; ext: string } {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
-  if (!match) throw new HttpError(400, "QR upload must be a base64 data URL")
+  if (!match) throw new HttpError(400, `${label} upload must be a base64 data URL`)
 
   const mime = match[1]
+  if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) {
+    throw new HttpError(400, `${label} must be PNG, JPEG, or WebP`)
+  }
   const base64 = match[2]
   const binary = atob(base64)
   const bytes = new Uint8Array(binary.length)
@@ -301,7 +324,7 @@ function dataUrlToUpload(dataUrl: string): { bytes: Uint8Array; mime: string; ex
 }
 
 async function uploadQrImage(dataUrl: string): Promise<string> {
-  const upload = dataUrlToUpload(dataUrl)
+  const upload = dataUrlToUpload(dataUrl, "QR image")
   const path = `qr-${Date.now()}.${upload.ext}`
   const resp = await fetch(`${supabaseUrl()}/storage/v1/object/payment-qrs/${path}`, {
     method: "POST",
@@ -318,6 +341,27 @@ async function uploadQrImage(dataUrl: string): Promise<string> {
     throw new HttpError(resp.status, text || "QR upload failed")
   }
   return `${supabaseUrl()}/storage/v1/object/public/payment-qrs/${path}`
+}
+
+async function uploadWebPlayerThumbnail(dataUrl: string, idHint = ""): Promise<string> {
+  const upload = dataUrlToUpload(dataUrl, "Thumbnail")
+  const safeId = idHint.replace(/[^a-z0-9-]/gi, "").slice(0, 80) || crypto.randomUUID()
+  const path = `${safeId}/thumb-${Date.now()}.${upload.ext}`
+  const resp = await fetch(`${supabaseUrl()}/storage/v1/object/web-player-thumbnails/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: serviceRole(),
+      Authorization: `Bearer ${serviceRole()}`,
+      "Content-Type": upload.mime,
+      "x-upsert": "true",
+    },
+    body: upload.bytes,
+  })
+  const text = await resp.text()
+  if (!resp.ok) {
+    throw new HttpError(resp.status, text || "Thumbnail upload failed")
+  }
+  return `${supabaseUrl()}/storage/v1/object/public/web-player-thumbnails/${path}`
 }
 
 async function saveQrSettings(body: ApiBody) {
@@ -482,32 +526,96 @@ async function testSource(body: ApiBody) {
 }
 
 async function listWebPlayers() {
-  return await rest<Array<Record<string, unknown>>>(
-    "/rest/v1/shared_web_players?select=*&order=sort_order.asc,slot.asc&limit=20",
-  )
+  try {
+    return await rest<Array<Record<string, unknown>>>(
+      "/rest/v1/web_players?select=*&order=sort_order.asc,title.asc&limit=500",
+    )
+  } catch (error) {
+    if (!(error instanceof HttpError) || ![400, 404].includes(error.status)) throw error
+    const legacyRows = await rest<Array<Record<string, unknown>>>(
+      "/rest/v1/shared_web_players?select=*&order=sort_order.asc,slot.asc&limit=20",
+    )
+    return legacyRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: null,
+      thumbnail_url: null,
+      url: row.url,
+      enabled: row.is_enabled !== false,
+      sort_order: row.sort_order ?? row.slot ?? 0,
+      category: null,
+      open_mode: row.open_external === true ? "external_browser" : "embedded_webview",
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      legacy_slot: row.slot,
+    }))
+  }
 }
 
 async function saveWebPlayer(body: ApiBody) {
   const player = (body.player ?? {}) as Record<string, unknown>
-  const slot = normalizeInt(player.slot, 1)
-  if (![1, 2].includes(slot)) throw new HttpError(400, "Slot must be 1 or 2")
+  const id = normalizeText(player.id)
+  const title = normalizeText(player.title)
+  if (!title) throw new HttpError(400, "Title is required")
+  const url = normalizeUrl(player.url, "Destination URL")
+  const thumbnailDataUrl = normalizeText(body.thumbnail_data_url || player.thumbnail_data_url)
+  const thumbnailUrl = thumbnailDataUrl
+    ? await uploadWebPlayerThumbnail(thumbnailDataUrl, id || title)
+    : normalizeUrl(player.thumbnail_url || player.thumbnailUrl, "Thumbnail URL", false)
   const payload = {
-    slot,
-    title: normalizeText(player.title) || `Web Player ${slot}`,
-    url: normalizeText(player.url),
-    is_enabled: player.is_enabled !== false && player.isEnabled !== false,
-    sort_order: normalizeInt(player.sort_order || player.sortOrder, slot),
-    open_external: player.open_external === true || player.openExternal === true,
+    title,
+    description: normalizeText(player.description) || null,
+    thumbnail_url: thumbnailUrl,
+    url,
+    enabled: player.enabled !== false && player.is_enabled !== false && player.isEnabled !== false,
+    sort_order: normalizeInt(player.sort_order || player.sortOrder, 0),
+    category: normalizeText(player.category) || null,
+    open_mode: normalizeOpenMode(player.open_mode || player.openMode),
+  }
+
+  if (id) {
+    return await rest<Array<Record<string, unknown>>>(
+      `/rest/v1/web_players?id=eq.${encodeFilter(id)}&select=*`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      },
+    )
   }
 
   return await rest<Array<Record<string, unknown>>>(
-    "/rest/v1/shared_web_players?on_conflict=slot&select=*",
+    "/rest/v1/web_players?select=*",
     {
       method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+      headers: { Prefer: "return=representation" },
       body: JSON.stringify(payload),
     },
   )
+}
+
+async function deleteWebPlayer(body: ApiBody) {
+  const id = normalizeText(body.id)
+  if (!id) throw new HttpError(400, "Missing web player id")
+  await rest<string>(`/rest/v1/web_players?id=eq.${encodeFilter(id)}`, { method: "DELETE" }, true)
+  return { ok: true }
+}
+
+async function reorderWebPlayers(body: ApiBody) {
+  const ids = Array.isArray(body.ids) ? body.ids.map(normalizeText).filter(Boolean) : []
+  if (ids.length === 0) throw new HttpError(400, "Missing web player order")
+  const updates = ids.map((id, index) =>
+    rest<Array<Record<string, unknown>>>(
+      `/rest/v1/web_players?id=eq.${encodeFilter(id)}&select=id,sort_order`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ sort_order: index + 1 }),
+      },
+    )
+  )
+  await Promise.all(updates)
+  return { ok: true }
 }
 
 async function bootstrap() {
@@ -577,6 +685,10 @@ serve(async (req) => {
         return jsonResponse({ data: await listWebPlayers() })
       case "save_web_player":
         return jsonResponse({ data: await saveWebPlayer(body) })
+      case "delete_web_player":
+        return jsonResponse({ data: await deleteWebPlayer(body) })
+      case "reorder_web_players":
+        return jsonResponse({ data: await reorderWebPlayers(body) })
       default:
         throw new HttpError(400, "Unknown admin action")
     }
