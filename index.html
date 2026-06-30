@@ -491,6 +491,7 @@
       <section class="page" id="page-customers"></section>
       <section class="page" id="page-subscriptions"></section>
       <section class="page" id="page-payments"></section>
+      <section class="page" id="page-appupdates"></section>
       <section class="page" id="page-iptv"></section>
       <section class="page" id="page-webplayers"></section>
       <section class="page" id="page-qr"></section>
@@ -539,6 +540,7 @@
       ["customers", "Customers", "Search and manage registered users."],
       ["subscriptions", "Subscriptions", "Plan settings and current subscription states."],
       ["payments", "Payments", "Manual payment verification history."],
+      ["appupdates", "App Updates", "In-app APK update prompts and required version gates."],
       ["iptv", "IPTV Sources", "Shared M3U sources for all, sports, and kids profiles."],
       ["webplayers", "Web Players", "Dynamic Web Apps cards managed without APK updates."],
       ["qr", "Payment QR Settings", "QR image, UPI details, and Android payment text."],
@@ -678,6 +680,7 @@
       renderCustomers();
       renderSubscriptions();
       renderPayments();
+      renderAppUpdates();
       renderIptv();
       renderWebPlayers();
       renderQr();
@@ -832,6 +835,69 @@
       });
     }
 
+    function renderAppUpdates() {
+      const rows = [...(state.data.app_updates || [])]
+        .sort((a, b) =>
+          Number(b.is_active === true) - Number(a.is_active === true) ||
+          Number(b.version_code || 0) - Number(a.version_code || 0) ||
+          String(b.created_at || "").localeCompare(String(a.created_at || ""))
+        );
+      const active = rows.find((row) => row.is_active === true);
+      $("page-appupdates").innerHTML = `
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>App Updates</h2>
+                <p>Set the latest APK URL, version, notes, and whether the update is required.</p>
+              </div>
+              ${active ? '<span class="badge active">Active update set</span>' : '<span class="badge disabled">No active update</span>'}
+            </div>
+            <div class="form-grid">
+              <input id="updateId" type="hidden" />
+              <div class="field"><label>Version name</label><input id="updateVersionName" placeholder="1.9.7" /></div>
+              <div class="field"><label>Version code</label><input id="updateVersionCode" type="number" min="1" placeholder="228" /></div>
+              <div class="field full"><label>APK URL</label><input id="updateApkUrl" placeholder="https://example.com/nexon.apk" /></div>
+              <div class="field full"><label>Release notes</label><textarea id="updateReleaseNotes" placeholder="What changed in this build"></textarea></div>
+              <div class="field"><label>Required</label><select id="updateRequired"><option value="false">Optional</option><option value="true">Required</option></select></div>
+              <div class="field"><label>Status</label><select id="updateActive"><option value="true">Active</option><option value="false">Disabled</option></select></div>
+            </div>
+            <div class="actions">
+              <button class="btn primary" onclick="saveAppUpdate()">Save Update</button>
+              <button class="btn" onclick="clearAppUpdateForm()">Clear</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Android Behavior</h2></div>
+            <p>Android checks the newest active row on launch and in Settings. If server version_code is higher than the installed version_code, users see the update dialog. Required updates disable Later and block the old app.</p>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Version</th><th>Code</th><th>Required</th><th>Status</th><th>APK URL</th><th>Updated</th><th></th></tr></thead>
+              <tbody>
+                ${rows.length ? rows.map((row) => `
+                  <tr>
+                    <td>${esc(row.version_name || "")}</td>
+                    <td>${esc(row.version_code || "")}</td>
+                    <td>${row.is_required ? '<span class="badge soon">Required</span>' : '<span class="badge disabled">Optional</span>'}</td>
+                    <td>${row.is_active ? '<span class="badge active">Active</span>' : '<span class="badge disabled">Disabled</span>'}</td>
+                    <td class="tiny">${esc(row.apk_url || "")}</td>
+                    <td>${dateTime(row.updated_at || row.created_at)}</td>
+                    <td>
+                      <button class="btn slim" onclick="editAppUpdate('${esc(row.id)}')">Edit</button>
+                      <button class="btn slim danger" onclick="deleteAppUpdate('${esc(row.id)}')">Delete</button>
+                    </td>
+                  </tr>
+                `).join("") : `<tr><td colspan="7" class="muted">No app updates configured.</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
     function renderIptv() {
       const q = state.sourceFilter.trim().toLowerCase();
       const rows = (state.data.sources || []).filter((s) =>
@@ -888,7 +954,11 @@
 
     function renderWebPlayers() {
       const players = [...(state.data.web_players || [])]
-        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.title || "").localeCompare(String(b.title || "")));
+        .sort((a, b) =>
+          Number(a.sort_order || 0) - Number(b.sort_order || 0) ||
+          String(a.created_at || "").localeCompare(String(b.created_at || "")) ||
+          String(a.title || "").localeCompare(String(b.title || ""))
+        );
       $("page-webplayers").innerHTML = `
         <div class="panel">
           <div class="panel-head">
@@ -1199,6 +1269,56 @@
       }
     };
 
+    window.clearAppUpdateForm = () => {
+      ["updateId", "updateVersionName", "updateVersionCode", "updateApkUrl", "updateReleaseNotes"].forEach((id) => $(id).value = "");
+      $("updateRequired").value = "false";
+      $("updateActive").value = "true";
+    };
+
+    window.editAppUpdate = (id) => {
+      const row = (state.data.app_updates || []).find((item) => item.id === id);
+      if (!row) return;
+      $("updateId").value = row.id || "";
+      $("updateVersionName").value = row.version_name || "";
+      $("updateVersionCode").value = row.version_code || "";
+      $("updateApkUrl").value = row.apk_url || "";
+      $("updateReleaseNotes").value = row.release_notes || "";
+      $("updateRequired").value = String(row.is_required === true);
+      $("updateActive").value = String(row.is_active === true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    window.saveAppUpdate = async () => {
+      try {
+        await adminApi("save_app_update", {
+          update: {
+            id: $("updateId").value,
+            version_name: $("updateVersionName").value,
+            version_code: Number($("updateVersionCode").value || 0),
+            apk_url: $("updateApkUrl").value,
+            release_notes: $("updateReleaseNotes").value,
+            is_required: $("updateRequired").value === "true",
+            is_active: $("updateActive").value === "true",
+          },
+        });
+        toast("App update saved.", "ok");
+        await loadAll();
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
+    window.deleteAppUpdate = async (id) => {
+      if (!id || !confirm("Delete this app update?")) return;
+      try {
+        await adminApi("delete_app_update", { id });
+        toast("App update deleted.", "ok");
+        await loadAll();
+      } catch (error) {
+        toast(error.message || String(error), "error");
+      }
+    };
+
     window.clearSourceForm = () => {
       ["sourceId", "sourceName", "sourceM3u", "sourceEpg"].forEach((id) => $(id).value = "");
       $("sourceProfile").value = "all";
@@ -1270,7 +1390,11 @@
     window.saveWebPlayer = async (target) => {
       try {
         const players = [...(state.data.web_players || [])]
-          .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.title || "").localeCompare(String(b.title || "")));
+          .sort((a, b) =>
+            Number(a.sort_order || 0) - Number(b.sort_order || 0) ||
+            String(a.created_at || "").localeCompare(String(b.created_at || "")) ||
+            String(a.title || "").localeCompare(String(b.title || ""))
+          );
         const isNew = target === "new";
         const index = Number(target);
         const existing = isNew ? null : players[index];
@@ -1318,7 +1442,11 @@
 
     window.moveWebPlayer = async (id, delta) => {
       const ids = [...(state.data.web_players || [])]
-        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.title || "").localeCompare(String(b.title || "")))
+        .sort((a, b) =>
+          Number(a.sort_order || 0) - Number(b.sort_order || 0) ||
+          String(a.created_at || "").localeCompare(String(b.created_at || "")) ||
+          String(a.title || "").localeCompare(String(b.title || ""))
+        )
         .map((p) => String(p.id || ""))
         .filter(Boolean);
       const index = ids.indexOf(id);
@@ -1349,7 +1477,11 @@
       const sourceId = state.webPlayerDragId || event.dataTransfer.getData("text/plain");
       if (!sourceId || !targetId || sourceId === targetId) return;
       const ids = [...(state.data.web_players || [])]
-        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.title || "").localeCompare(String(b.title || "")))
+        .sort((a, b) =>
+          Number(a.sort_order || 0) - Number(b.sort_order || 0) ||
+          String(a.created_at || "").localeCompare(String(b.created_at || "")) ||
+          String(a.title || "").localeCompare(String(b.title || ""))
+        )
         .map((p) => String(p.id || ""))
         .filter(Boolean);
       const from = ids.indexOf(sourceId);
